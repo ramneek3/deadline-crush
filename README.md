@@ -7,7 +7,7 @@ Built for the Hack4Hack Crew Hiring Challenge 2026, problem statement 2.
 
 | | |
 |---|---|
-| **Live URL** | _added after deployment_ |
+| **Live URL** | https://deadline-crush.vercel.app (API: https://deadline-crush-api.onrender.com, first request after idle takes ~50 s on the free tier) |
 | **Design doc** | [docs/DESIGN.md](docs/DESIGN.md) (1 page) |
 | **Load-test report** | [docs/LOAD-TEST.md](docs/LOAD-TEST.md) |
 
