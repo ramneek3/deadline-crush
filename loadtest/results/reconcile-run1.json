@@ -1,0 +1,13 @@
+{
+  "acknowledgedSubmissions": 2490,
+  "teamsWithASubmission": 1992,
+  "foundInDatabase": 2490,
+  "missing": 0,
+  "notAccepted": [],
+  "stillPendingAfterDrain": 0,
+  "withoutCheckResult": 0,
+  "duplicateCheckResults": 0,
+  "wrongVersionCounted": 0,
+  "storedButNotAcknowledgedToClient": 0,
+  "lost": 0
+}

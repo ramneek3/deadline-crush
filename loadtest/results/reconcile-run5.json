@@ -1,0 +1,13 @@
+{
+  "acknowledgedSubmissions": 2500,
+  "teamsWithASubmission": 2000,
+  "foundInDatabase": 2500,
+  "missing": 0,
+  "notAccepted": [],
+  "stillPendingAfterDrain": 0,
+  "withoutCheckResult": 0,
+  "duplicateCheckResults": 0,
+  "wrongVersionCounted": 0,
+  "storedButNotAcknowledgedToClient": 0,
+  "lost": 0
+}

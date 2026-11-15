@@ -4,8 +4,9 @@ dist/
 .env.*
 !.env.example
 *.log
-/tmp/
+!loadtest/results/ledger-run*.log
 coverage/
 .DS_Store
-loadtest/results/*.json
 loadtest/tokens.json
+loadtest/organizer-token.txt
+loadtest/fixture.zip
