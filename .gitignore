@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+/tmp/
+coverage/
+.DS_Store
+loadtest/results/*.json
+loadtest/tokens.json
