@@ -29,7 +29,7 @@ services:
       - key: S3_REGION
         value: auto
       - key: S3_BUCKET
-        value: submissions
+        value: deadline-crush
       - key: S3_ACCESS_KEY
         sync: false
       - key: S3_SECRET_KEY
