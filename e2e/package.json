@@ -1,0 +1,7 @@
+{
+  "name": "deadline-crush-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node run.mjs" },
+  "devDependencies": { "playwright": "^1.50.0", "fflate": "^0.8.2" }
+}

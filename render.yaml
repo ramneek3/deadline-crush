@@ -1,0 +1,44 @@
+# Render Blueprint: API + embedded worker as one free web service.
+# MongoDB (Atlas M0), Redis (Upstash) and object storage (Cloudflare R2) are external; set the secrets in the dashboard.
+services:
+  - type: web
+    name: deadline-crush-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npx tsx src/api/main.ts
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: EMBED_WORKER
+        value: "true"
+      - key: WORKER_CONCURRENCY
+        value: "2"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URL        # Atlas connection string
+        sync: false
+      - key: REDIS_URL        # Upstash: rediss://default:<password>@<host>:6379
+        sync: false
+      - key: S3_ENDPOINT      # https://<account-id>.r2.cloudflarestorage.com
+        sync: false
+      - key: S3_PUBLIC_ENDPOINT
+        sync: false           # same as S3_ENDPOINT for R2
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        value: submissions
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGIN      # the web app's URL, e.g. https://deadline-crush.vercel.app
+        sync: false
+      - key: S3_CORS_ORIGINS  # same value; applied to the bucket so browsers can PUT parts
+        sync: false
+      - key: DEADLINE_AT
+        sync: false           # ISO time, first boot only; organizers can change it later
+      - key: GRACE_SECONDS
+        value: "300"

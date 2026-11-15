@@ -12,7 +12,7 @@ const STATUS_LABEL: Record<string, string> = {
   needs_fix: "Needs fixing",
   failed: "Checks failed to run",
 };
-const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
+const mb = (n: number) => (n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
 export function TeamPage({ me }: { me: Me }) {
   const [versions, setVersions] = useState<VersionView[]>([]);

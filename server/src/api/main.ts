@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { config } from "../config";
 import { connectDb } from "../lib/db";
 import { ensureBucket, ensureCors } from "../lib/s3";
+import { startWorker } from "../worker/main";
 
 async function main() {
   await connectDb();
@@ -12,7 +13,11 @@ async function main() {
   // at that instant gets a connection reset, so keep sockets open longer than typical proxy idle timeouts.
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
-  const shutdown = () => server.close(() => process.exit(0));
+  // Free hosting tiers have no separate background-worker service: EMBED_WORKER=true runs the queue
+  // worker inside this process. Same code path as the standalone worker; scale by running both kinds.
+  const embedded = process.env.EMBED_WORKER === "true" ? await startWorker() : null;
+  if (embedded) console.log("embedded worker started");
+  const shutdown = () => server.close(() => (embedded ? embedded.close() : Promise.resolve()).finally(() => process.exit(0)));
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 }

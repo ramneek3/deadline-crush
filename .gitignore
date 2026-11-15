@@ -10,3 +10,4 @@ coverage/
 loadtest/tokens.json
 loadtest/organizer-token.txt
 loadtest/fixture.zip
+e2e/out/

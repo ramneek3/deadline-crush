@@ -82,6 +82,31 @@ authentication, access control between teams, the deadline and grace policy (inc
 instant), resumable multipart uploads, every background check, live status over SSE, the organizer
 endpoints, and exactly-once processing, including killing a worker process mid-job.
 
+## Browser end-to-end test
+
+`e2e/` drives the real UI in headless Chromium against a running stack: register with the keyboard, upload a
+20 MB file in parts and watch the status change without a reload, a rejected file, resume after a page reload,
+the closed-deadline state, the organizer dashboard and CSV export, and no horizontal scroll at phone width.
+
+```bash
+cd e2e && npm i && npx playwright install chromium && node run.mjs
+```
+
+## Deploy (free tiers)
+
+| Part | Where | Notes |
+|---|---|---|
+| Web | Vercel (root `web`, env `VITE_API_URL`) | static build |
+| API + worker | Render free web service ([`render.yaml`](render.yaml)) | `EMBED_WORKER=true` runs the queue worker in the same process |
+| Database | MongoDB Atlas M0 | |
+| Queue | Upstash Redis | use the `rediss://` URL |
+| Files | Cloudflare R2 | `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`, region `auto` |
+
+On boot the API creates the bucket if missing and applies a CORS rule (exposing `ETag`) so browsers can upload
+parts directly. Create the organizer with `npm run create-organizer -- <email> <password>` against the
+production `MONGO_URL`. Render's free tier sleeps after idle time, so open the site before the event starts; the
+sweeper re-enqueues any job interrupted by a sleep.
+
 ## Load test
 
 ```bash
