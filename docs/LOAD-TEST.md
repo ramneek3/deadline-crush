@@ -18,7 +18,7 @@ target; they are reported too, because what they exposed shaped the design.
 | Data | 2,000 teams (seeded), each uploads a 1.5 MB incompressible zip (3.1 GB uploaded in total) |
 
 **Scenario** (`ramping-arrival-rate`, 10 minutes): 1 team/s for 6 min, rising to 5/s over 3 min, then a
-**last-minute burst rising to 35 teams/s** (60% of all submissions land in the final 4 minutes). Each team: create
+**last-minute burst rising to 35 teams/s** (about 60% of all submissions land in the final minute). Each team: create
 version, request part URL, PUT the file straight to storage, acknowledge the part, complete, then poll its
 status every 1.5 s until a worker has checked it. A quarter of teams then submit a text-only edit, for **2,500
 submissions in total**.
@@ -35,7 +35,7 @@ its newest acknowledged one.
 
 | Run | Change since previous | API p95 | API p99 | Failed API requests | Acknowledged | Lost |
 |---|---|---|---|---|---|---|
-| 1 | First full run | **603 ms** ✗ | 1,087 ms | 3 (connection resets) | 2,490 | 0 |
+| 1 | First full run | **603 ms** ✗ | 1,087 ms | 3 (`create` calls; cause not captured, see below) | 2,490 | 0 |
 | 2 | Longer keep-alive timeout; cached membership lookup; audit writes off the request path | **383 ms** ✗ | 865 ms | 0 | not reconciled | n/a |
 | 3 | Workers and storage stand-in at lower CPU priority (`nice 10`), to approximate running elsewhere | **326 ms** ✗ | 1,044 ms | 0 | 2,500 | 0 |
 | 4 | **Upload finalisation moved from the request into the worker**; workers/storage at `nice 10` | **38 ms** ✓ | 84 ms | 0 | 2,500 | 0 |
@@ -49,15 +49,18 @@ Per-endpoint p95 (run 5, equal priority): create version 217 ms · part URL 73 m
 
 ### What the failed runs taught
 
-- **Run 1: connection resets.** Node closes idle keep-alive sockets after 5 s; a client reusing one at that instant
-  gets a reset. Fixed with `keepAliveTimeout = 65 s`. It is also the classic cause of 502s behind a proxy.
+- **Run 1: 3 failed `create` calls.** I did not capture their status codes and the API log was clean. The likely cause
+  is Node closing idle keep-alive sockets after 5 s, so a client reusing one at that instant gets a reset. I raised
+  `keepAliveTimeout` to 65 s (also a known cause of 502s behind proxies) and API failures dropped to 0 in every
+  later run. That is consistent with the cause but not proof of it.
 - **Run 3: `complete` was the bottleneck** (p95 1.13 s). It assembled the multipart object in storage inside the
   HTTP request. On real S3/R2 that step can take seconds for a 100 MB file, so a burst of them would hold request
   slots. Run 4 moves it into the worker: the API records the intent (a compare-and-set) and answers in
   milliseconds, and the worker assembles, size-checks, then validates the file. It is idempotent across retries
   and concurrent workers (a test caught that race).
-- Profiling (`top`) showed the box at ~98% CPU for about 30 s of the burst in the earlier runs, so those
-  latencies were queueing for CPU, not slow code. I did not tune the numbers by trimming the workload.
+- A separate 60-second burst-only profile (`top`, on the pre-fix code) showed the whole box at ~98% CPU for about
+  30 s, so much of the earlier latency was queueing for CPU on the shared machine. The workload was never reduced to
+  improve the numbers; every run used the same 2,000 teams and 1.5 MB files.
 
 ## A 100 MB-class file, for real
 
