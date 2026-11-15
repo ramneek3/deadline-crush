@@ -42,10 +42,21 @@ export function requireOrganizer(req: Request, res: Response, next: NextFunction
   next();
 }
 
-/** Team routes: the caller must belong to a team. Membership is re-read from the DB, not the token. */
+const memberCache = new Map<string, { teamId: string; exp: number }>();
+const MEMBER_TTL_MS = 10_000;
+
+/** Team routes: the caller must belong to a team. Membership comes from the DB (cached for 10 s), not the token. */
 export async function requireTeamMember(req: Request, res: Response, next: NextFunction) {
-  const user = await User.findById(req.user!.id).select("teamId role").lean();
+  const id = req.user!.id;
+  const hit = memberCache.get(id);
+  if (hit && hit.exp > Date.now()) {
+    req.user!.teamId = hit.teamId;
+    return next();
+  }
+  const user = await User.findById(id).select("teamId role").lean();
   if (!user?.teamId || user.role !== "team") return res.status(403).json({ error: "no_team" });
+  if (memberCache.size > 20_000) memberCache.clear();
+  memberCache.set(id, { teamId: String(user.teamId), exp: Date.now() + MEMBER_TTL_MS });
   req.user!.teamId = String(user.teamId);
   next();
 }

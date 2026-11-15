@@ -69,10 +69,13 @@ describe("upload flow (direct-to-storage, multipart)", () => {
     const t = await newTeam();
     const bytes = bigPdf();
     // Declare one byte more than we upload; part count stays 3 so the upload looks complete.
-    const r = await uploadFile(t.token, bytes, { declaredSize: bytes.length + 1 });
-    expect(r.complete!.status).toBe(422);
-    const v = await Version.findById(r.versionId).lean();
-    expect(v!.status).toBe("needs_fix");
+    await withWorker(async () => {
+      const r = await uploadFile(t.token, bytes, { declaredSize: bytes.length + 1 });
+      expect(r.complete!.status).toBe(200); // accepted for processing; verification happens in the worker
+      const v = await waitStatus(r.versionId!, "needs_fix", "accepted");
+      expect(v.status).toBe("needs_fix");
+      expect(v.problems.join(" ")).toContain("size_mismatch");
+    });
   });
 
   it("rejects declared files over 100 MB and invalid links", async () => {

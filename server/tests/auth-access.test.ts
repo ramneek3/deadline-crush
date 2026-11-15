@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { api, auth, setup, teardown, resetAll, openWindow, newTeam, newOrganizer, uploadFile, createVersion } from "./helpers";
+import { api, auth, setup, teardown, resetAll, openWindow, newTeam, newOrganizer, uploadFile, createVersion, waitStatus, withWorker } from "./helpers";
 import { tinyPdf } from "./fixtures";
 
 beforeAll(setup);
@@ -85,7 +85,10 @@ describe("only team members can see or change a team's submission", () => {
 
   it("only issues a download URL to the owning team", async () => {
     const a = await newTeam("a");
-    await uploadFile(a.token, tinyPdf()); // complete, no worker needed to download
+    await withWorker(async () => {
+      const r = await uploadFile(a.token, tinyPdf());
+      await waitStatus(r.versionId!, "accepted"); // the worker assembles the object, then checks it
+    });
     const list = await api().get("/versions").set(auth(a.token));
     const dl = await api().get(`/versions/${list.body.versions[0].id}/download`).set(auth(a.token));
     expect(dl.status).toBe(200);

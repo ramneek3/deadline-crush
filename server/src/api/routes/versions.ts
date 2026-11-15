@@ -74,7 +74,7 @@ versionsRouter.post("/versions", async (req, res) => {
       partCount,
       startedAt: at,
     });
-    await logAttempt({ teamId, userId: req.user!.id, type: "create_version", accepted: true });
+    void logAttempt({ teamId, userId: req.user!.id, type: "create_version", accepted: true }); // fire-and-forget: audit trail, not on the critical path
     await publishEvent({ teamId, versionId: String(version._id), versionNo, status: "uploading", at: at.toISOString() });
     return res.status(201).json({
       version: shape(version.toObject()),
@@ -93,7 +93,7 @@ versionsRouter.post("/versions", async (req, res) => {
     ...(prev?.file ? { file: prev.file } : {}),
   });
   await enqueueCheck(String(version._id));
-  await logAttempt({ teamId, userId: req.user!.id, type: "create_version", accepted: true });
+  void logAttempt({ teamId, userId: req.user!.id, type: "create_version", accepted: true }); // fire-and-forget: audit trail, not on the critical path
   await publishEvent({ teamId, versionId: String(version._id), versionNo, status: "queued", at: at.toISOString() });
   res.status(201).json({ version: shape(version.toObject()) });
 });

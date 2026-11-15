@@ -1,7 +1,9 @@
+import type { Types } from "mongoose";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CheckResult, Version } from "../lib/models";
+import { CheckResult, Version, Upload } from "../lib/models";
+import { completeMultipart, headObject } from "../lib/s3";
 import { publishEvent } from "../lib/events";
 import { now } from "../lib/clock";
 import { config } from "../config";
@@ -50,7 +52,9 @@ export async function processVersion(versionId: string): Promise<{ result: strin
   const delay = Number(process.env.WORKER_TEST_DELAY_MS ?? 0);
   if (delay > 0) await sleep(delay); // lets tests kill us mid-job
 
-  const outcome = await runChecks(versionId, v.file?.key ?? undefined, v.file?.name ?? undefined, v.links ?? []);
+  // Step 0: assemble the uploaded parts into the final object (moved out of the HTTP request).
+  const uploadProblems = await finalizeUpload(v._id);
+  const outcome = await runChecks(versionId, v.file?.key ?? undefined, v.file?.name ?? undefined, v.links ?? [], uploadProblems);
 
   try {
     await CheckResult.updateOne(
@@ -93,13 +97,47 @@ async function finalize(
   }
 }
 
-async function runChecks(versionId: string, key: string | undefined, fileName: string | undefined, links: string[]): Promise<Outcome> {
-  const problems: string[] = [];
+const PERMANENT_S3 = new Set(["InvalidPart", "InvalidPartOrder", "EntityTooSmall", "MalformedXML", "NoSuchBucket"]);
+
+/**
+ * Turn the acknowledged parts into one stored object, then verify its size. Idempotent across
+ * retries: if an earlier (killed) run already assembled the object, S3 answers NoSuchUpload and we
+ * simply verify the object that is there.
+ */
+async function finalizeUpload(versionId: Types.ObjectId): Promise<string[]> {
+  const u = await Upload.findOne({ versionId }).lean();
+  if (!u || u.status !== "completing") return [];
+  try {
+    await completeMultipart(u.key, u.s3UploadId, u.parts.map((p) => ({ n: p.n as number, etag: p.etag! })));
+  } catch (e) {
+    const name = (e as { name?: string }).name ?? "";
+    // Another worker (or an earlier, killed run) may have assembled it already, in which case storage
+    // can answer NoSuchUpload or even an error for the concurrent call. If the object is there with the
+    // right size, the work is done; otherwise decide between "permanent" and "retry".
+    const existing = await headObject(u.key);
+    const alreadyDone = existing && existing.size === u.fileSize;
+    if (!alreadyDone && name !== "NoSuchUpload") {
+      if (!PERMANENT_S3.has(name)) throw e; // transient: let BullMQ retry with backoff
+      await Upload.updateOne({ _id: u._id }, { $set: { status: "completed" } });
+      return ["upload_incomplete: storage could not assemble the uploaded parts; please re-upload"];
+    }
+  }
+  const head = await headObject(u.key);
+  await Upload.updateOne({ _id: u._id }, { $set: { status: "completed" } });
+  if (!head) return ["upload_incomplete: the uploaded file is missing from storage; please re-upload"];
+  if (head.size !== u.fileSize) return [`size_mismatch: stored ${head.size} bytes but ${u.fileSize} were declared`];
+  return [];
+}
+
+async function runChecks(versionId: string, key: string | undefined, fileName: string | undefined, links: string[], uploadProblems: string[] = []): Promise<Outcome> {
+  const problems: string[] = [...uploadProblems];
   const out: Outcome = { passed: false, problems, linkResults: [] };
 
   const linkPromise = Promise.all(links.slice(0, 10).map(checkLink));
 
-  if (!key) {
+  if (uploadProblems.length) {
+    // The stored object is not what the team uploaded; checking its content would be meaningless.
+  } else if (!key) {
     problems.push("no_file: this version has no file attached");
   } else {
     const dir = await mkdtemp(join(tmpdir(), "chk-"));
